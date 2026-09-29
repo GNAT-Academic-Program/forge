@@ -1,0 +1,16 @@
+name = "forge_cli"
+description = "forge command-line front end"
+executables = ["forge_cli"]
+version = "0.1.0-dev"
+authors = ["Olivier Henley"]
+maintainers = ["Olivier Henley <henley@adacore.com>"]
+maintainers-logins = ["ohenley"]
+licenses = "Apache-2.0"
+
+project-files = ["cli.gpr"]
+
+[[depends-on]]
+forge = "*"
+
+[[pins]]
+forge = { path = ".." }
