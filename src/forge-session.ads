@@ -23,6 +23,8 @@
 with Forge.Commands; use Forge.Commands;
 with Forge.Mesh;     use Forge.Mesh;
 
+with Bedrock.Responses;
+
 package Forge.Session is
 
    Max_Solids  : constant := 64;
@@ -32,14 +34,11 @@ package Forge.Session is
 
    Max_Response : constant := 1024;
 
-   type Response is record
-      Ok     : Boolean := True;
-      Length : Natural range 0 .. Max_Response := 0;
-      Text   : String (1 .. Max_Response) := [others => ' '];
-   end record;
-   --  Ok and a message: "ok", "ok <info lines>", or "err <reason>".
-
-   function Image (R : Response) return String is (R.Text (1 .. R.Length));
+   --  The GAP line protocol's reply, from bedrock: "ok", "ok <info>",
+   --  or "err <reason>". Same type in framewise and yarlib's console.
+   package Responses is new Bedrock.Responses (Max_Response);
+   subtype Response is Responses.Response;
+   function Image (R : Response) return String renames Responses.Image;
 
    procedure Execute (S : in out Session; Line : String; R : out Response);
    --  Parses and runs one line. Modeling commands are appended to the

@@ -13,8 +13,8 @@ package body Forge.Session is
    --  Meshes are allocated once per slot and reused; nothing frees them
    --  before the program ends. Kept for a future Session finalizer.
 
-   procedure Set (R : out Response; Ok : Boolean; Msg : String);
-   procedure Append (R : in out Response; Msg : String);
+   procedure Set (R : out Response; Ok : Boolean; Msg : String) renames Responses.Set;
+   procedure Append (R : in out Response; Msg : String) renames Responses.Append;
    function Find (S : Session; N : Name) return Natural;
    function Slot_For (S : in out Session; N : Name) return Natural;
    procedure Release (S : in out Session; I : Positive);
@@ -30,22 +30,6 @@ package body Forge.Session is
    ---------------------------------------------------------------------
    --  Responses
    ---------------------------------------------------------------------
-
-   procedure Set (R : out Response; Ok : Boolean; Msg : String) is
-      L : constant Natural := Natural'Min (Msg'Length, Max_Response);
-   begin
-      R.Ok := Ok;
-      R.Length := L;
-      R.Text := [others => ' '];
-      R.Text (1 .. L) := Msg (Msg'First .. Msg'First + L - 1);
-   end Set;
-
-   procedure Append (R : in out Response; Msg : String) is
-      L : constant Natural := Natural'Min (Msg'Length, Max_Response - R.Length);
-   begin
-      R.Text (R.Length + 1 .. R.Length + L) := Msg (Msg'First .. Msg'First + L - 1);
-      R.Length := R.Length + L;
-   end Append;
 
    ---------------------------------------------------------------------
    --  Solid table

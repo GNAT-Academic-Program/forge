@@ -9,3 +9,9 @@ website = "https://github.com/GNAT-Academic-Program/forge"
 tags = ["cad", "geometry", "csg", "spark", "gap"]
 
 project-files = ["forge.gpr"]
+
+[[depends-on]]
+bedrock = "*"
+
+[[pins]]
+bedrock = { url = "https://github.com/GNAT-Academic-Program/bedrock.git" }

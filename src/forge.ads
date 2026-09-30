@@ -4,44 +4,47 @@
 --  Forge.Session; the kernel computes, the session owns memory, the
 --  front ends (cli/, ui/) talk to the session in lines of text.
 
+with Bedrock.Generic_Vectors;
+with Bedrock.Names;
+
 package Forge with SPARK_Mode, Pure is
 
    type Scalar is new Long_Float;
    --  CAD needs range and 15 digits; fixed point is the wrong tool here.
    --  What is proved is topology (integers), not floating-point geometry.
 
-   type Vec3 is record
-      X, Y, Z : Scalar := 0.0;
-   end record;
+   --  Vectors come from bedrock, the GAP foundation crate, instantiated
+   --  at forge's precision. Re-exported so `use Forge` is enough.
+   package Geometry is new Bedrock.Generic_Vectors (Scalar);
 
-   Origin : constant Vec3 := (0.0, 0.0, 0.0);
+   subtype Vec3 is Geometry.Vector3;
+   Origin : Vec3 renames Geometry.Zero3;
 
-   function "+" (A, B : Vec3) return Vec3 is (A.X + B.X, A.Y + B.Y, A.Z + B.Z);
-   function "-" (A, B : Vec3) return Vec3 is (A.X - B.X, A.Y - B.Y, A.Z - B.Z);
-   function "*" (A : Vec3; S : Scalar) return Vec3 is (A.X * S, A.Y * S, A.Z * S);
-   function Dot (A, B : Vec3) return Scalar is (A.X * B.X + A.Y * B.Y + A.Z * B.Z);
-   function Cross (A, B : Vec3) return Vec3 is
-     (A.Y * B.Z - A.Z * B.Y, A.Z * B.X - A.X * B.Z, A.X * B.Y - A.Y * B.X);
+   function "=" (A, B : Vec3) return Boolean renames Geometry."=";
+   function "+" (A, B : Vec3) return Vec3 renames Geometry."+";
+   function "-" (A, B : Vec3) return Vec3 renames Geometry."-";
+   function "-" (A : Vec3) return Vec3 renames Geometry."-";
+   function "*" (A : Vec3; S : Scalar) return Vec3 renames Geometry."*";
+   function Dot (A, B : Vec3) return Scalar renames Geometry.Dot;
+   function Cross (A, B : Vec3) return Vec3 renames Geometry.Cross;
+   function Length (A : Vec3) return Scalar renames Geometry.Length;
+   function Normalized (A : Vec3) return Vec3 renames Geometry.Normalized;
 
-   type Axis is (X, Y, Z);
+   subtype Axis is Geometry.Axis;
+   function X return Axis renames Geometry.X;
+   function Y return Axis renames Geometry.Y;
+   function Z return Axis renames Geometry.Z;
+   function "=" (A, B : Axis) return Boolean renames Geometry."=";
 
    ---------------------------------------------------------------------
-   --  Names: identifiers for solids in a session. Bounded, ASCII.
+   --  Names: identifiers for solids in a session. Bedrock's bounded
+   --  Name, so a name means the same thing in every GAP tool.
    ---------------------------------------------------------------------
 
-   Max_Name : constant := 32;
-
-   type Name is record
-      Length : Natural range 0 .. Max_Name := 0;
-      Text   : String (1 .. Max_Name) := [others => ' '];
-   end record;
-
-   function To_Name (S : String) return Name
-     with Pre => S'Length <= Max_Name;
-
-   function Image (N : Name) return String is (N.Text (1 .. N.Length));
-
-   function "=" (A, B : Name) return Boolean is
-     (A.Length = B.Length and then A.Text (1 .. A.Length) = B.Text (1 .. B.Length));
+   Max_Name : constant := Bedrock.Names.Max_Name;
+   subtype Name is Bedrock.Names.Name;
+   function To_Name (S : String) return Name renames Bedrock.Names.To_Name;
+   function Image (N : Name) return String renames Bedrock.Names.Image;
+   function "=" (A, B : Name) return Boolean renames Bedrock.Names."=";
 
 end Forge;
