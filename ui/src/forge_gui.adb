@@ -81,6 +81,8 @@ procedure Forge_GUI is
      (Background_Color => Set_Bg (RGB (255, 255, 255)),
       Padding          => Set (CSS_Box (Px (10.0))),
       Border_Radius    => Set (Radius (Px (6.0))),
+      Flex_Grow        => Set (1.0),
+      Flex_Basis       => Set (Basis (Px (0.0))),
       others           => <>);
 
    --  Gives the STL export input a contrasting background.
@@ -117,17 +119,26 @@ procedure Forge_GUI is
    Root_Style : constant Style_Rules :=
      (Display          => Set (Flex),
       Flex_Direction   => Set (Column),
-      Background_Color => Set_Bg (RGB (245, 246, 248)),
+      Background_Color => Set_Bg (RGB (235, 238, 242)),
       Padding          => Set (CSS_Box (Px (20.0))),
       Gap              => Set (Gap (Px (12.0))),
       others           => <>);
 
-   --  Places the left and right panels side by side.
+   --  Places the main panels side by side and fills available space.
    Panels_Style : constant Style_Rules :=
      (Display        => Set (Flex),
       Flex_Direction => Set (Row),
       Width          => Set (Size (Pct (100.0))),
+      Flex_Grow      => Set (1.0),
       Gap            => Set (Gap (Px (16.0))),
+      others         => <>);
+
+   --  Arranges the command input and Execute button horizontally.
+   Command_Row_Style : constant Style_Rules :=
+     (Display        => Set (Flex),
+      Flex_Direction => Set (Row),
+      Width          => Set (Size (Pct (100.0))),
+      Gap            => Set (Gap (Px (12.0))),
       others         => <>);
 
    --  Sets the shared appearance and sizing of both panels.
@@ -140,6 +151,34 @@ procedure Forge_GUI is
       Padding          => Set (CSS_Box (Px (12.0))),
       Gap              => Set (Gap (Px (12.0))),
       others           => <>);
+
+   --  Stacks the information and export panels vertically.
+   Right_Stack_Style : constant Style_Rules :=
+     (Display        => Set (Flex),
+      Flex_Direction => Set (Column),
+      Flex_Grow      => Set (1.0),
+      Flex_Basis     => Set (Basis (Px (0.0))),
+      Gap            => Set (Gap (Px (12.0))),
+      others         => <>);
+
+   --  Keeps the STL export panel compact.
+   Export_Panel_Style : constant Style_Rules :=
+     (Display          => Set (Flex),
+      Flex_Direction   => Set (Column),
+      Background_Color => Set_Bg (RGB (255, 255, 255)),
+      Padding          => Set (CSS_Box (Px (12.0))),
+      Gap              => Set (Gap (Px (12.0))),
+      others           => <>);
+
+   --  Keeps command history at a fixed height with vertical scrolling.
+   History_Scroll_Style : constant Style_Rules :=
+     (Height       => Set (Size (Px (140.0))),
+      Background_Color => Set_Bg (RGB (240, 243, 247)),
+      Overflow_Y   => Set_Overflow_Y (Overflow_Auto),
+      Overflow_X   => Set_Overflow_X (Overflow_Hidden),
+      Padding      => Set (CSS_Box (Px (6.0))),
+      Border_Radius => Set (Radius (Px (6.0))),
+      others       => <>);
 
    --  Updates the stored command whenever the user types in the input field.
    --  The command is saved until the user presses Enter or clicks Execute.
@@ -219,10 +258,9 @@ procedure Forge_GUI is
    end On_Execute;
 
    --  Gets the solid name from the export input field.
-   --  Uses Forge's existing export command to save the solid
-   --  as an STL file and displays the result.
+   --  Displays the generated export command in the main command field,
+   --  then executes it through the existing command handler.
    procedure On_Export (Widget : Widget_Handle) is
-      pragma Unreferenced (Widget);
 
       Name : constant String :=
         Adi.Widget.Text_Input.Get_Text (Export_Input);
@@ -231,10 +269,21 @@ procedure Forge_GUI is
          Adi.Widget.Label.Set_Text
            (Result_Label, "Enter a solid name to export.");
       else
-         Adi.Widget.Label.Set_Text
-           (Result_Label,
-            Forge.UI.Run_Command
-              ("export " & Name & " " & Name & ".stl"));
+         declare
+            Export_Command : constant String :=
+              "export " & Name & " " & Name & ".stl";
+         begin
+            --  Update the stored command and visible command field.
+            Command_Text :=
+              Ada.Strings.Unbounded.To_Unbounded_String
+                (Export_Command);
+
+            Adi.Widget.Text_Input.Set_Text
+              (Blink_Input, Export_Command);
+
+            --  Execute the command and refresh the GUI information.
+            On_Execute (Widget);
+         end;
       end if;
    end On_Export;
 
@@ -347,6 +396,10 @@ begin
       Panels : constant Adi.Widget.Box.Box_Handle :=
         Adi.Widget.Box.Create_Handle;
 
+      --  Holds the command input and Execute button side by side.
+      Command_Row : constant Adi.Widget.Box.Box_Handle :=
+         Adi.Widget.Box.Create_Handle;
+
       --  Left panel displays the CSG tree, solids, and command history.
       Left_Panel : constant Adi.Widget.Box.Box_Handle :=
         Adi.Widget.Box.Create_Handle;
@@ -354,6 +407,18 @@ begin
       --  Right panel displays geometry status and STL export controls.
       Right_Panel : constant Adi.Widget.Box.Box_Handle :=
         Adi.Widget.Box.Create_Handle;
+
+      --  Display geometry status and command history.
+      Info_Panel : constant Adi.Widget.Box.Box_Handle :=
+         Adi.Widget.Box.Create_Handle;
+
+      --  Holds the command history in a scrollable area.
+      History_Box : constant Adi.Widget.Box.Box_Handle :=
+         Adi.Widget.Box.Create_Handle;
+
+      --  Contains the STL export controls.
+      Export_Panel : constant Adi.Widget.Box.Box_Handle :=
+         Adi.Widget.Box.Create_Handle;
 
       --  ** Placeholder for the CSG tree output
       CSG_Label : constant Adi.Widget.Label.Label_Handle :=
@@ -451,12 +516,8 @@ begin
       Adi.Widget.Button.Connect_Clicked
         (Export_Button, On_Export'Unrestricted_Access);
 
-      --  Add the title, command input, Execute button, and result
-      --  message to the top of the application.
+      --  Add the application title above the main panels.
       Add_Child (Widget_Handle'(+Root), Widget_Handle'(+Title));
-      Add_Child (Widget_Handle'(+Root), Widget_Handle'(+Input));
-      Add_Child (Widget_Handle'(+Root), Widget_Handle'(+Execute_Button));
-      Add_Child (Widget_Handle'(+Root), Widget_Handle'(+Result_Label));
 
       Set_Part_Style
         (Widget_Handle'(+Export_Input),
@@ -473,40 +534,75 @@ begin
          Main_Part,
          Adi.Widget_Styles.Create.Base (Panels_Style).Build);
 
+      --  Arrange the command input and Execute button horizontally.
+      Set_Part_Style
+         (Widget_Handle'(+Command_Row),
+         Main_Part,
+         Adi.Widget_Styles.Create.Base (Command_Row_Style).Build);
+
       Set_Part_Style
         (Widget_Handle'(+Left_Panel),
          Main_Part,
          Adi.Widget_Styles.Create.Base (Panel_Style).Build);
 
+      --  Arrange the right-side sections vertically.
       Set_Part_Style
-        (Widget_Handle'(+Right_Panel),
-         Main_Part,
-         Adi.Widget_Styles.Create.Base (Panel_Style).Build);
+         (Widget_Handle'(+Right_Panel),
+          Main_Part,
+          Adi.Widget_Styles.Create.Base (Right_Stack_Style).Build);
 
-      --  Add the CSG placeholder, solids list, and command history
-      --  to the left panel.
+      --  Style the geometry status and command history section.
+      Set_Part_Style
+         (Widget_Handle'(+Info_Panel),
+          Main_Part,
+          Adi.Widget_Styles.Create.Base (Panel_Style).Build);
+
+      --  Give command history its own scrollable area.
+      Set_Part_Style
+         (Widget_Handle'(+History_Box),
+          Main_Part,
+          Adi.Widget_Styles.Create.Base (History_Scroll_Style).Build);
+
+      --  Style the separate STL export section.
+      Set_Part_Style
+         (Widget_Handle'(+Export_Panel),
+          Main_Part,
+          Adi.Widget_Styles.Create.Base (Export_Panel_Style).Build);
+
+      --  Display the CSG tree and solids in the left panel.
       Add_Child (Widget_Handle'(+Left_Panel),
                  Widget_Handle'(+CSG_Label));
 
       Add_Child (Widget_Handle'(+Left_Panel),
                  Widget_Handle'(+Solids_Label));
 
-      Add_Child (Widget_Handle'(+Left_Panel),
-                 Widget_Handle'(+History_Label));
-
-      --  Add the geometry status and STL export controls
-      --  to the right panel.
-      Add_Child (Widget_Handle'(+Right_Panel),
+      --  Display geometry status and command history together.
+      Add_Child (Widget_Handle'(+Info_Panel),
                  Widget_Handle'(+Status_Label));
 
-      Add_Child (Widget_Handle'(+Right_Panel),
+      --  Place command history inside its scrollable container.
+      Add_Child (Widget_Handle'(+History_Box),
+                 Widget_Handle'(+History_Label));
+
+      Add_Child (Widget_Handle'(+Info_Panel),
+                 Widget_Handle'(+History_Box));
+
+      --  Keep the STL export controls in their own section.
+      Add_Child (Widget_Handle'(+Export_Panel),
                  Widget_Handle'(+Export_Label));
 
-      Add_Child (Widget_Handle'(+Right_Panel),
+      Add_Child (Widget_Handle'(+Export_Panel),
                  Widget_Handle'(+Export_Input));
 
-      Add_Child (Widget_Handle'(+Right_Panel),
+      Add_Child (Widget_Handle'(+Export_Panel),
                  Widget_Handle'(+Export_Button));
+
+      --  Stack the information and export sections on the right.
+      Add_Child (Widget_Handle'(+Right_Panel),
+                 Widget_Handle'(+Info_Panel));
+
+      Add_Child (Widget_Handle'(+Right_Panel),
+                 Widget_Handle'(+Export_Panel));
 
       --  Combine both panels and attach them to the main layout.
       Add_Child (Widget_Handle'(+Panels),
@@ -517,6 +613,21 @@ begin
 
       Add_Child (Widget_Handle'(+Root),
                  Widget_Handle'(+Panels));
+
+      --  Display the command result above the command bar.
+      Add_Child (Widget_Handle'(+Root),
+                 Widget_Handle'(+Result_Label));
+
+      --  Place the command input and Execute button side by side.
+      Add_Child (Widget_Handle'(+Command_Row),
+                 Widget_Handle'(+Input));
+
+      Add_Child (Widget_Handle'(+Command_Row),
+                 Widget_Handle'(+Execute_Button));
+
+      --  Position the completed command bar below the panels.
+      Add_Child (Widget_Handle'(+Root),
+                 Widget_Handle'(+Command_Row));
 
       --  Attach the completed layout to the window and place
       --  keyboard focus in the main command field.
