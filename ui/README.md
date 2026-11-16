@@ -63,11 +63,6 @@ Run the application on Windows:
 alr exec -- .\bin\forge_gui.exe
 ```
 
-The UI crate puts Alire's MSYS2 runtime libraries first on `PATH` on Windows.
-Launching through `alr exec` applies this setting so SDL loads compatible DLLs.
-Mixing in another MinGW installation's `libiconv-2.dll` can prevent font loading
-and truncate the window title.
-
 ## Current GUI Features
 
 The GUI currently supports:
