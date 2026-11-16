@@ -12,3 +12,9 @@ adi2 = "*"
 [[pins]]
 forge = { path = ".." }
 adi2 = { url = "https://github.com/ovenpasta/adi2.git", commit = "71f4635a3fcab9d5293df8e0cd9b4d53df44c602" }
+
+# Keep SDL and its DLL dependencies from the same MSYS2 installation.
+# The trailing slash keeps Alire 2.1's automatic PATH append from replacing
+# this prepend of the same directory.
+[environment.'case(distribution)']
+msys2 = { PATH.prepend = "${DISTRIB_ROOT}/mingw64/bin/" }
