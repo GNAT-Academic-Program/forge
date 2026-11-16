@@ -4,6 +4,7 @@ with Ada.Assertions;
 with Ada.Exceptions;
 with Ada.Unchecked_Deallocation;
 with Forge.Primitives;
+with Forge.Numerics;
 with Forge.STL;
 with Forge.Transform;
 
@@ -116,15 +117,13 @@ package body Forge.Session is
          Release (S, Index);
       end Remove;
 
-      procedure Change (M : in out Tri_Mesh; Offset, Pivot : Vec3; Factor : Scalar);
-      procedure Change (M : in out Tri_Mesh; Offset, Pivot : Vec3; Factor : Scalar) is
+      procedure Change (M : in out Tri_Mesh; Offset, Pivot : Vec3; Factor, Divisor : Scalar);
+      procedure Change (M : in out Tri_Mesh; Offset, Pivot : Vec3; Factor, Divisor : Scalar) is
       begin
          case C.K is
             when Translate | Move => Transform.Translate (M, Offset);
             when Scale | Resize =>
-               Transform.Translate (M, -Pivot);
-               Transform.Scale (M, Factor);
-               Transform.Translate (M, Pivot);
+               Transform.Scale_About (M, Pivot, Factor, Divisor);
             when Rotate => Transform.Rotate (M, C.About, C.Degrees);
             when others => null;
          end case;
@@ -179,6 +178,7 @@ package body Forge.Session is
                Offset : Vec3 := Origin;
                Pivot : Vec3 := Origin;
                Factor : Scalar := 1.0;
+               Divisor : Scalar := 1.0;
                Point : Tri_Mesh (1, 0);
                V : Vertex_Index;
                Ancestor : Natural;
@@ -191,7 +191,7 @@ package body Forge.Session is
                   end if;
                   Factor := C.Factor;
                   if C.K = Resize then
-                     Factor := C.Factor / S.Tree (I).Scale;
+                     Divisor := S.Tree (I).Scale;
                      Pivot := S.Tree (I).Position;
                   end if;
                end if;
@@ -202,12 +202,12 @@ package body Forge.Session is
                         Ancestor := Need (S.Tree (Ancestor).Parent);
                      end loop;
                      if Ancestor = I then
-                        Change (S.Meshes (J).all, Offset, Pivot, Factor);
+                        Change (S.Meshes (J).all, Offset, Pivot, Factor, Divisor);
                         Clear (Point);
                         Add_Vertex (Point, S.Tree (J).Position, V, Ok);
-                        Change (Point, Offset, Pivot, Factor);
+                        Change (Point, Offset, Pivot, Factor, Divisor);
                         S.Tree (J).Position := Point.V (V);
-                        S.Tree (J).Scale := S.Tree (J).Scale * Factor;
+                        S.Tree (J).Scale := Numerics.Rescale (S.Tree (J).Scale, Factor, Divisor);
                         if S.Tree (J).Scale <= 0.0 then
                            raise Invalid_Command with "scale underflow";
                         end if;
@@ -359,32 +359,73 @@ package body Forge.Session is
    procedure Do_Export (S : Session; N : Name; Path : String; R : out Response) is
       use Ada.Streams.Stream_IO;
       I : constant Natural := Find (S, N);
+      Selected : array (S.Meshes'Range) of Boolean := [others => False];
+      Triangles : Natural := 0;
       F : File_Type;
-   begin
-      if I = 0 then
-         Set (R, False, "err no solid named " & Image (N));
-         return;
-      end if;
-      if S.Tree (I).Kind in Union_Node .. Intersection_Node then
-         Set (R, False, "err Boolean geometry is not implemented");
-         return;
-      end if;
-      declare
-         M    : Tri_Mesh renames S.Meshes (I).all;
-         Buf  : STL.Byte_Array (1 .. STL.Size (M));
-         Last : Natural;
+
+      procedure Write_Bytes (Buf : STL.Byte_Array);
+      procedure Write_Bytes (Buf : STL.Byte_Array) is
          Elems : Ada.Streams.Stream_Element_Array
            (1 .. Ada.Streams.Stream_Element_Offset (Buf'Length))
            with Import, Address => Buf'Address;
       begin
-         STL.Write (M, Buf, Last);
+         Write (F, Elems);
+      end Write_Bytes;
+   begin
+      if Path'Length = 0 or else Path'Length > Max_Path
+        or else (for some Ch of Path => Ch < ' ' or else Ch = '"')
+      then
+         Set (R, False, "err invalid export path");
+         return;
+      end if;
+      if N.Length /= 0 and then I = 0 then
+         Set (R, False, "err no solid named " & Image (N));
+         return;
+      end if;
+      --  Validate the entire selection before opening or truncating a file.
+      for J in S.Meshes'Range loop
+         Selected (J) := S.Tree (J).N.Length /= 0 and then
+           (if N.Length = 0 then S.Tree (J).Parent = World else J = I);
+         if Selected (J) then
+            if S.Tree (J).Kind in Union_Node .. Intersection_Node then
+               Set (R, False, "err Boolean geometry pending for " & Image (S.Tree (J).N));
+               return;
+            end if;
+            Triangles := Triangles + Natural (S.Meshes (J).NT);
+         end if;
+      end loop;
+      if Triangles = 0 then
+         Set (R, False, "err workspace is empty");
+         return;
+      end if;
+      declare
+         Header : STL.Byte_Array (1 .. 84);
+         Facet : STL.Byte_Array (1 .. 50);
+      begin
+         STL.Write_Header (Triangles, Header);
          Create (F, Out_File, Path);
-         Write (F, Elems (1 .. Ada.Streams.Stream_Element_Offset (Last)));
+         Write_Bytes (Header);
+         for J in S.Meshes'Range loop
+            if Selected (J) then
+               for T in 1 .. S.Meshes (J).NT loop
+                  STL.Write_Triangle (S.Meshes (J).all, T, Facet);
+                  Write_Bytes (Facet);
+               end loop;
+            end if;
+         end loop;
          Close (F);
-         Set (R, True, "ok wrote" & Last'Image & " bytes to " & Path);
+         Set (R, True, "ok wrote" & Natural'Image (84 + 50 * Triangles) & " bytes to " & Path);
       end;
    exception
       when others =>
+         --  Preserve the write error even if flushing during close also fails.
+         begin
+            if Is_Open (F) then
+               Close (F);
+            end if;
+         exception
+            when others => null;
+         end;
          Set (R, False, "err cannot write " & Path);
    end Do_Export;
 
@@ -519,12 +560,7 @@ package body Forge.Session is
          when List    => Do_List (S, R);
          when Info    => Do_Info (S, C.Target, R);
          when Commands.Export =>
-            if C.Ex_Name.Length = 0 then
-               Export (S, Image (C.Ex_Path));
-               Set (R, True, "ok workspace export pending; no file written");
-            else
-               Do_Export (S, C.Ex_Name, Image (C.Ex_Path), R);
-            end if;
+            Do_Export (S, C.Ex_Name, Image (C.Ex_Path), R);
          when Save    => Do_Save (S, Image (C.File), R);
          when Load    => Do_Load (S, Image (C.File), R);
          when Comment | Empty => Set (R, True, "ok");
@@ -675,9 +711,12 @@ package body Forge.Session is
    end Redo;
 
    procedure Export (S : Session; Filepath : String) is
-      pragma Unreferenced (S, Filepath);
+      R : Response;
    begin
-      null;
+      Do_Export (S, To_Name (""), Filepath, R);
+      if not R.Ok then
+         raise Invalid_Command with Image (R);
+      end if;
    end Export;
 
    function View_Tree (S : Session) return Node_Array is

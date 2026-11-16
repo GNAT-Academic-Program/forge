@@ -24,7 +24,7 @@
 --    list                                     query, not recorded
 --    info       NAME                          query, not recorded
 --    export     NAME FILE.stl                 side effect, not recorded
---    export     FILE.stl                      workspace export placeholder
+--    export     FILE.stl                      all top-level meshes in one STL
 --    tree                                     query, not recorded
 --    history                                  query, not recorded
 --    redo                                     meta
@@ -99,7 +99,7 @@ package Forge.Commands with SPARK_Mode is
          when Delete | Info =>
             Target   : Name;
          when Export =>
-            Ex_Name  : Name; -- empty for the whole-workspace export hook
+            Ex_Name  : Name; -- empty selects whole-workspace export
             Ex_Path  : Path_String;
          when Save | Load =>
             File     : Path_String;

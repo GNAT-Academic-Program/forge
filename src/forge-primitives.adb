@@ -134,13 +134,13 @@ package body Forge.Primitives with SPARK_Mode => Off is
       for I in 1 .. Rings loop
          for J in 1 .. Segments loop
             declare
-               Latitude : constant Scalar := -Ada.Numerics.Pi / 2.0
-                 + Scalar (I) * Ada.Numerics.Pi / 8.0;
-               Longitude : constant Scalar := Scalar (J - 1) * 2.0 * Ada.Numerics.Pi / 16.0;
-               Radius : constant Scalar := R * Elem.Cos (Latitude);
+               Latitude : constant Scalar := -Numerics.Pi / 2
+                 + Numerics.Pi * I / 8;
+               Longitude : constant Scalar := Numerics.Pi * (2 * (J - 1)) / 16;
+               Radius : constant Scalar := R * Numerics.Cos (Latitude);
             begin
-               Add_Vertex (M, (Radius * Elem.Cos (Longitude), Radius * Elem.Sin (Longitude),
-                               R * Elem.Sin (Latitude)), Vertices (I, J), Ok);
+               Add_Vertex (M, (Radius * Numerics.Cos (Longitude), Radius * Numerics.Sin (Longitude),
+                               R * Numerics.Sin (Latitude)), Vertices (I, J), Ok);
             end;
          end loop;
       end loop;
@@ -156,6 +156,13 @@ package body Forge.Primitives with SPARK_Mode => Off is
             end loop;
          end;
       end loop;
+      if Ok then
+         for I in 1 .. M.NT loop
+            if Normal (M, I) = Origin then
+               Ok := False;
+            end if;
+         end loop;
+      end if;
       if not Ok then
          Clear (M);
       end if;

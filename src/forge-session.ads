@@ -53,8 +53,9 @@ package Forge.Session is
    procedure Redo (S : in out Session);
    --  Typed conveniences raise Invalid_Command when Execute reports failure.
    procedure Export (S : Session; Filepath : String);
-   --  Reserved whole-workspace STL hook; no-op until export integration.
-   --  The existing "export NAME FILE" still exports a primitive mesh.
+   --  Export top-level meshes as separate shells in one binary STL.
+   --  Empty workspaces and pending Boolean groups raise Invalid_Command.
+   --  No history or redo changes. Named export is available through Execute.
 
    type Command_Array is array (Positive range <>) of Command;
    function View_History
@@ -69,6 +70,7 @@ package Forge.Session is
    ---------------------------------------------------------------------
 
    function Solid_Count (S : Session) return Natural;
+   --  Number of tree objects, including Boolean groups and their operands.
    function Solid_Name (S : Session; I : Positive) return Name
      with Pre => I <= Solid_Count (S);
    function Has_Solid (S : Session; N : Name) return Boolean;
