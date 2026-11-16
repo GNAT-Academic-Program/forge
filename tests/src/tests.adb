@@ -198,9 +198,10 @@ procedure Tests is
       Execute (S, "info nothere", R);
       Check ("unknown solid is an error", not R.Ok);
       Execute (S, "union u a b", R);
-      Check ("csg reports not implemented", not R.Ok and History_Length (S) = 3);
+      Check ("csg records a group", R.Ok and Solid_Count (S) = 3 and History_Length (S) = 4);
       Execute (S, "undo", R);
-      Check ("undo removes copy", R.Ok and Solid_Count (S) = 1 and History_Length (S) = 2);
+      Check ("undo removes group", R.Ok and Solid_Count (S) = 2 and History_Length (S) = 3);
+      Execute (S, "undo", R);
       Execute (S, "undo", R);
       Execute (S, "undo", R);
       Check ("undo to empty", Solid_Count (S) = 0 and History_Length (S) = 0);
